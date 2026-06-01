@@ -12,7 +12,7 @@ const plans = [
         name: "Free",
         price: "₹0",
         credits: 100,
-        description: "Perfect to explore GenWeb.ai",
+        description: "Perfect to explore Lixa ai",
         features: [
             "AI website generation",
             "Responsive HTML output",

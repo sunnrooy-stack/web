@@ -73,7 +73,7 @@ function Generate() {
                 <div className='max-w-7xl mx-auto px-6 h-16 flex items-center justify-between'>
                     <div className='flex items-center gap-4'>
                         <button className='p-2 rounded-lg hover:bg-white/10 transition' onClick={() => navigate("/")}><ArrowLeft size={16} /></button>
-                        <h1 className='text-lg font-semibold'>Genweb<span className='text-zinc-400'>.ai</span></h1>
+                        <h1 className='text-lg font-semibold'>Lixa<span className='text-zinc-400'> ai</span></h1>
                     </div>
 
                 </div>
@@ -91,7 +91,7 @@ function Generate() {
                     </h1>
                     <p className='text-zinc-400 max-w-2xl mx-auto'>
                         This process may take several minutes.
-                        genweb.ai focuses on quality, not shortcuts.
+                        Lixa ai focuses on quality, not shortcuts.
                     </p>
 
                 </motion.div>
