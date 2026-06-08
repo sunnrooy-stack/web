@@ -1,11 +1,13 @@
-import { ArrowLeft, Check, Coins } from 'lucide-react';
+import { ArrowLeft, Check, Coins, Loader2 } from 'lucide-react';
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom';
 
 import { motion } from "motion/react"
-import { useSelector } from 'react-redux';
+import { useSelector, useDispatch } from 'react-redux';
 import axios from 'axios';
 import { serverUrl } from '../App';
+import { setUserData } from '../redux/userSlice';
+
 const plans = [
     {
         key: "free",
@@ -51,29 +53,114 @@ const plans = [
         button: "Contact Sales",
     },
 ];
-function Pricing() {
-    const navigate = useNavigate()
-  const {userData}=useSelector(state=>state.user)
-  const [loading,setLoading]=useState(null)
-    const handleBuy=async (planKey)=>{
-if(!userData){
-navigate("/")
-return
-}
-if(planKey=="free"){
-    navigate("/dashboard")
-    return
-}
-setLoading(planKey)
-try {
-    const result=await axios.post(`${serverUrl}/api/billing`,{planType:planKey},{withCredentials:true})
-    window.location.href=result.data.sessionUrl
-} catch (error) {
-    console.log(error)
-    setLoading(null)
+
+function loadRazorpayScript() {
+    return new Promise((resolve) => {
+        if (document.querySelector('script[src="https://checkout.razorpay.com/v1/checkout.js"]')) {
+            resolve(true)
+            return
+        }
+        const script = document.createElement("script")
+        script.src = "https://checkout.razorpay.com/v1/checkout.js"
+        script.onload = () => resolve(true)
+        script.onerror = () => resolve(false)
+        document.body.appendChild(script)
+    })
 }
 
+function Pricing() {
+    const navigate = useNavigate()
+    const dispatch = useDispatch()
+    const { userData } = useSelector(state => state.user)
+    const [loading, setLoading] = useState(null)
+    const [successPlan, setSuccessPlan] = useState(null)
+
+    const handleBuy = async (planKey) => {
+        if (!userData) {
+            navigate("/")
+            return
+        }
+        if (planKey == "free") {
+            navigate("/dashboard")
+            return
+        }
+        setLoading(planKey)
+        try {
+            const loaded = await loadRazorpayScript()
+            if (!loaded) {
+                alert("Razorpay SDK failed to load. Check your internet connection.")
+                setLoading(null)
+                return
+            }
+
+            const { data } = await axios.post(
+                `${serverUrl}/api/billing/create-order`,
+                { planType: planKey },
+                { withCredentials: true }
+            )
+
+            const options = {
+                key: data.keyId,
+                amount: data.amount,
+                currency: data.currency,
+                name: "Lixa AI",
+                description: `${planKey.charAt(0).toUpperCase() + planKey.slice(1)} Plan - Credits`,
+                order_id: data.orderId,
+                handler: async function (response) {
+                    try {
+                        const verifyRes = await axios.post(
+                            `${serverUrl}/api/billing/verify-payment`,
+                            {
+                                razorpay_order_id: response.razorpay_order_id,
+                                razorpay_payment_id: response.razorpay_payment_id,
+                                razorpay_signature: response.razorpay_signature,
+                                planType: planKey,
+                            },
+                            { withCredentials: true }
+                        )
+                        dispatch(setUserData({
+                            ...userData,
+                            credits: verifyRes.data.credits,
+                            plan: verifyRes.data.plan,
+                        }))
+                        setSuccessPlan(planKey)
+                        setTimeout(() => {
+                            navigate("/dashboard")
+                        }, 2000)
+                    } catch (err) {
+                        console.log(err)
+                        alert("Payment verification failed. Please contact support.")
+                    }
+                    setLoading(null)
+                },
+                prefill: {
+                    name: userData?.name || "",
+                    email: userData?.email || "",
+                },
+                theme: {
+                    color: "#6366f1",
+                },
+                modal: {
+                    ondismiss: function () {
+                        setLoading(null)
+                    },
+                },
+            }
+
+            const rzp = new window.Razorpay(options)
+            rzp.on("payment.failed", function (response) {
+                console.log(response.error)
+                alert("Payment failed. Please try again.")
+                setLoading(null)
+            })
+            rzp.open()
+        } catch (error) {
+            console.log(error)
+            alert("Something went wrong. Please try again.")
+            setLoading(null)
+        }
     }
+
     return (
         <div className='relative min-h-screen overflow-hidden bg-[#050505] text-white px-6 pt-16 pb-24'>
 
@@ -140,17 +227,23 @@ try {
 
                         <motion.button
                             whileTap={{ scale: 0.96 }}
-                            disabled={loading}
-                            onClick={()=>handleBuy(p.key)}
-                            className={`w-full py-3 rounded-xl font-semibold transition
-                              ${p.popular
-                                    ? "bg-indigo-500 hover:bg-indigo-600"
-                                    : "bg-white/10 hover:bg-white/20"
+                            disabled={loading !== null}
+                            onClick={() => handleBuy(p.key)}
+                            className={`w-full py-3 rounded-xl font-semibold transition flex items-center justify-center gap-2
+                              ${successPlan === p.key
+                                    ? "bg-emerald-500 text-white"
+                                    : p.popular
+                                        ? "bg-indigo-500 hover:bg-indigo-600"
+                                        : "bg-white/10 hover:bg-white/20"
                                 } disabled:opacity-60`}
                         >
-                            {loading===p.key?"Redirecting...":p.button}
-
-
+                            {successPlan === p.key ? (
+                                <><Check size={16} /> Payment Successful!</>
+                            ) : loading === p.key ? (
+                                <><Loader2 size={16} className="animate-spin" /> Processing...</>
+                            ) : (
+                                p.button
+                            )}
                         </motion.button>
 
 
